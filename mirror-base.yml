@@ -1,0 +1,135 @@
+# Repo-wide policy for the cocogitto mirror.
+#
+# NOT a spec: it has no name/target/source and is never loaded on its own.
+# Everything a package owns — name, target, source, assets, asset_type,
+# bin_scan, metadata, catalog, tests, versions, announce, annotations — stays
+# in cocogitto/mirror.yml.
+#
+# ⚠️ `extends:` is a SHALLOW merge of top-level keys. A spec that sets a key
+# below replaces that block OUTRIGHT — there is no per-key merge. `platforms:`
+# is where this bites: it carries BOTH the runner matrix and the container
+# legs, so a child that restates it to tweak one runner silently drops every
+# `containers:` entry. Nothing reds — the legs simply stop existing, and every
+# os.features claim in that spec goes back to being merely asserted. This repo
+# is single-package, so `platforms:` lives HERE and cocogitto/mirror.yml does
+# not restate it — the trap is structurally eliminated rather than avoided.
+
+skip_prereleases: true
+cascade: true
+
+# New package, so the fleet rule applies unconditionally. A cascade tag
+# (`latest`, `7`, `7.0`) re-points on every re-publish; without a build segment
+# the new manifest reuses the bare version tag and orphans the prior digest for
+# registry GC, breaking any `@sha256:` pin in a consumer's ocx.lock. The `none`
+# exception applies only where upstream versions ALREADY carry semver build
+# metadata — cocogitto tags bare `X.Y.Z` with no `+build` segment, so it does
+# not.
+build_timestamp: date
+
+verify:
+  github_asset_digest: true
+
+concurrency:
+  # Assets are ~2.5–3.2 MB gzip tarballs holding one fat Rust binary
+  # (6.7–9.4 MB unpacked, NOT stripped) plus a 1071-byte LICENSE.
+  max_downloads: 8
+  max_bundles: 4
+  max_pushes: 2
+  rate_limit_ms: 100
+  max_retries: 3
+  compression_threads: 0
+
+# ─── Platform matrix ────────────────────────────────────────────────────────
+#
+# `os.features` states what an artifact REQUIRES OF THE HOST — it is not a
+# label for how it was built. Upstream's Linux coverage here is ASYMMETRIC:
+# x86_64 ships musl ONLY and aarch64 ships gnu ONLY, so neither arch's verdict
+# can be inferred from the other's. Each was measured independently, on all
+# three in-range releases (6.4.0, 6.5.0, 7.0.0 — identical every time); the
+# commands and their output sit above `assets:` in cocogitto/mirror.yml.
+#
+#   linux/amd64  (x86_64-unknown-linux-musl)
+#     file → "static-pie linked";  readelf -l | grep -c INTERP → 0;
+#     readelf -d | grep -c NEEDED → 0;  no GLIBC_* symbol versions at all.
+#     ⇒ requires NOTHING of the host userland ⇒ BARE key. `+libc.musl` would
+#       be a FALSE requirement, hiding the package from every glibc host it in
+#       fact runs on. A bare key claims universality, so it must PROVE it:
+#       ubuntu (glibc) + alpine (musl) + fedora (a different glibc vintage).
+#       THE ALPINE LEG IS THE PROOF — drop it and the claim is only asserted.
+#
+#   linux/arm64  (aarch64-unknown-linux-gnu)
+#     file → "dynamically linked, interpreter /lib/ld-linux-aarch64.so.1";
+#     5 × DT_NEEDED (libgcc_s.so.1, libpthread.so.0, libdl.so.2, libc.so.6,
+#     ld-linux-aarch64.so.1);  newest symbol version GLIBC_2.18.
+#     ⇒ genuinely requires a glibc userland ⇒ `+libc.glibc`, and NO alpine
+#       leg: it would red with a bare loader error, which is the honest answer
+#       but not a useful test. ubuntu:24.04 (glibc 2.39) and fedora:40 (2.39)
+#       both clear the 2.18 floor.
+#
+# There is no musl aarch64 asset and no gnu x86_64 asset upstream, so nothing
+# is being left on the table by declaring one key per arch.
+#
+# ─── NO `containers[].setup` — and that is a MEASURED result ────────────────
+#
+# cocogitto looks like a tool that must shell out to `git`, and it does not.
+# It vendors libgit2 statically (the `git2` crate): every failure it emits is
+# libgit2's own, verbatim — e.g. `class=Repository (6); code=NotFound (-3)`.
+# Verified inside bare `alpine:3.20`, where `command -v git` returns nothing:
+# `cog init` created a real repository and its initial commit, `cog check`
+# walked the history to exit 0, and `cog changelog` printed short OIDs it
+# computed from the object database. So git is NOT a runtime dependency and
+# provisioning it would WEAKEN the claim: bare images say "this artifact needs
+# nothing of the host beyond its libc", which is the stronger and true
+# statement. (Contrast prek/lefthook, which really do exec `git` and really do
+# need the install line.)
+#
+# ─── Staged rollout (skill Phase 10) ────────────────────────────────────────
+#
+# darwin and windows are pre-written and commented out below AND in
+# cocogitto/mirror.yml's `assets:`, uncommented one pass at a time once the
+# Linux legs are end-to-end green. Both halves are commented TOGETHER on
+# purpose — a declared-but-unmatched platform still boots a real macOS/Windows
+# runner and reports SUCCESS having tested nothing.
+platforms:
+  linux/amd64:
+    runner: ubuntu-latest
+    containers:
+      - { image: "ubuntu:24.04", shell: bash }
+      - { image: "alpine:3.20",  shell: sh }
+      - { image: "fedora:40",    shell: bash }
+  "linux/arm64+libc.glibc":
+    # arm64 container legs run natively — no qemu — so the runner arch must
+    # match the platform or the renderer reds the leg up front. No alpine:
+    # this artifact needs glibc, and a musl image would only reproduce that.
+    runner: ubuntu-24.04-arm
+    containers:
+      - { image: "ubuntu:24.04", shell: bash }
+      - { image: "fedora:40",    shell: bash }
+  # No `containers:` on darwin or windows — those runners have no Linux
+  # container engine, and the key is rejected at spec load.
+  #
+  # darwin/amd64:
+  #   # Intel slice tested on the arm64 macos-14 runner via Rosetta 2 —
+  #   # GitHub's native macos-13 Intel pool is exhausted and deadlocks push.
+  #   runner: macos-14
+  #   prefix: ["arch", "-x86_64"]
+  # darwin/arm64:
+  #   runner: macos-14
+  #   shell: bash
+  #
+  # windows/amd64:
+  #   runner: windows-latest
+  #   shell: pwsh
+  #
+  # windows/arm64 is NOT declared and never will be from this upstream: no
+  # `aarch64-pc-windows-msvc` asset exists at any in-range release. Each of
+  # 6.4.0, 6.5.0 and 7.0.0 carries exactly six assets, re-listed per tag with
+  # `gh api repos/cocogitto/cocogitto/releases/tags/<tag> --jq '.assets[].name'`,
+  # and the only windows target among them is `x86_64-pc-windows-msvc`.
+  # Declaring it anyway would boot a windows-11-arm runner that resolves zero
+  # assets, self-skips, and reports SUCCESS having tested nothing.
+
+notify:
+  discord:
+    webhook_secret: OCX_MIRROR_DISCORD_HOOK
+    user_id: "227748867204972545"  # pinged in-message on failures
