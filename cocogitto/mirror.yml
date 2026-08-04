@@ -117,11 +117,10 @@ assets:
     - "^cocogitto-.*-aarch64-unknown-linux-gnu\\.tar\\.gz$"
   # Staged rollout — uncommented one pass at a time, in lockstep with the
   # matching key in ../mirror-base.yml's `platforms:`. See the note there.
-  #
-  # darwin/amd64:
-  #   - "^cocogitto-.*-x86_64-apple-darwin\\.tar\\.gz$"
-  # darwin/arm64:
-  #   - "^cocogitto-.*-aarch64-apple-darwin\\.tar\\.gz$"
+  darwin/amd64:
+    - "^cocogitto-.*-x86_64-apple-darwin\\.tar\\.gz$"
+  darwin/arm64:
+    - "^cocogitto-.*-aarch64-apple-darwin\\.tar\\.gz$"
   #
   # ⚠ The windows asset is a `.tar.gz`, NOT the usual `.zip` — unusual for an
   # msvc target and verified per tag. A `\\.zip$` pattern here would match
