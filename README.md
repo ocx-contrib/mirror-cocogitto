@@ -56,10 +56,11 @@ green.
 
 ## Platforms
 
-Two platform entries today (Linux only, pass 1 of the staged rollout); darwin
-and windows are pre-written and commented out in both `assets:` and
-`platforms:`, uncommented one pass at a time. Commenting **both** halves is
-deliberate — a platform declared with no matching asset still boots a real
+Five platform entries: `linux/amd64`, `linux/arm64+libc.glibc`, `darwin/amd64`,
+`darwin/arm64` and `windows/amd64`. They were rolled out in three passes —
+Linux, then darwin, then windows — with each unshipped platform commented out
+in **both** `assets:` and `platforms:` until its pass. Commenting both halves
+is deliberate: a platform declared with no matching asset still boots a real
 macOS or Windows runner, self-skips, and reports SUCCESS having tested nothing.
 
 **Upstream's Linux coverage is asymmetric, so each arch was measured on its
@@ -94,7 +95,15 @@ useful test.
 
 ⚠️ **The Windows asset is a `.tar.gz`, not the usual `.zip`** — unusual for an
 msvc target, and a `\.zip$` pattern would match zero assets and be *silently
-skipped*.
+skipped*. It carries the same `<triple>/{LICENSE,cog.exe}` wrapper as every
+other target, so `strip_components: 1` covers it with no per-platform override.
+Proved without a runner via a windows-only temp-spec `pipeline prepare`:
+
+```
+$ tar tvf …/windows_amd64/bundle.tar.xz
+-rw-r--r--     1071  LICENSE
+-rwxr-xr-x  7601152  cog.exe
+```
 
 ## Archive layout and the binaries claim
 
