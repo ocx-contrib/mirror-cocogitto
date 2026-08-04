@@ -125,8 +125,8 @@ assets:
   # ⚠ The windows asset is a `.tar.gz`, NOT the usual `.zip` — unusual for an
   # msvc target and verified per tag. A `\\.zip$` pattern here would match
   # zero assets and be SILENTLY skipped.
-  # windows/amd64:
-  #   - "^cocogitto-.*-x86_64-pc-windows-msvc\\.tar\\.gz$"
+  windows/amd64:
+    - "^cocogitto-.*-x86_64-pc-windows-msvc\\.tar\\.gz$"
 
 # `tar tvf` on every declared asset of 6.4.0 and 7.0.0 — all six are the same
 # two-entry shape, a wrapper directory named for the target triple:
