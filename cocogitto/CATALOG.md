@@ -39,17 +39,6 @@ per-package tags and configuration, and everything is configured from a single
 
 The release archive contains this executable and the upstream `LICENSE`.
 
-## Install with ocx
-
-```sh
-ocx install ocx.sh/cocogitto/cocogitto
-```
-
-```sh
-# or pin a specific version
-ocx install ocx.sh/cocogitto/cocogitto:7.0.0
-```
-
 No `git` executable is required — `cog` links libgit2 statically and performs
 its own repository access.
 
