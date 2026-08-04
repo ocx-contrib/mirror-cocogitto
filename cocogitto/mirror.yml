@@ -184,7 +184,7 @@ versions:
   # declared platform and no per-platform min_version window is needed.
   min: "6.4.0"
   new_per_run: 5
-  poll_interval: "46 */6 * * *"
+  poll_interval: "50 3-23/6 * * *"
 
 tests:
   # `script:` resolves from the REPOSITORY ROOT — unlike `metadata.default`

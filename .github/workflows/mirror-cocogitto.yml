@@ -6,7 +6,7 @@ name: cocogitto
 
 on:
   schedule:
-    - cron: '46 */6 * * *'
+    - cron: '50 3-23/6 * * *'
   workflow_dispatch:
   push:
     branches: [main]
